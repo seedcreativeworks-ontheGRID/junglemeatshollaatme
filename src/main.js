@@ -79,15 +79,18 @@ async function init() {
       Cesium.Ion.defaultAccessToken = cesiumToken;
     }
 
-    // Set Google Maps API key for 3D Tiles
+    // Set Google Maps API key for 3D Tiles. Optional: without one, the
+    // createGooglePhotorealistic3DTileset() call below fails and the app
+    // falls back to Cesium's free OpenStreetMap-based globe instead of
+    // refusing to boot (see the tileset try/catch a few lines down).
     const googleApiKey = import.meta.env.GOOGLE_MAPS_API_KEY;
-    if (!googleApiKey) {
-      throw new Error('GOOGLE_MAPS_API_KEY not found. Set it as an environment variable.');
+    if (googleApiKey) {
+      Cesium.GoogleMaps.defaultApiKey = googleApiKey;
+      // Expose API key globally for geocoding in locations.js
+      window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
+    } else {
+      loaderStatus.textContent = 'No GOOGLE_MAPS_API_KEY set — using free OpenStreetMap globe...';
     }
-    Cesium.GoogleMaps.defaultApiKey = googleApiKey;
-
-    // Expose API key globally for geocoding in locations.js
-    window.__GOOGLE_MAPS_API_KEY__ = googleApiKey;
 
     // Create the Cesium viewer with minimal chrome
     const viewer = new Cesium.Viewer('cesiumContainer', {
