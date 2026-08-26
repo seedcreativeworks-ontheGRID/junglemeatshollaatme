@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { installGlobalErrorBoundary } from './errorBoundary.js';
 import { StyleManager } from './ui.js';
 import { flyToAustin } from './camera.js';
 import { DataLayerManager } from './data/manager.js';
@@ -32,6 +33,12 @@ import {
 } from './renderGovernor.js';
 import { installScopeMask } from './scopeMask.js';
 import { initFirstRunExperience } from './firstRunExperience.js';
+
+// Installed FIRST, before anything else in this module runs: a last-resort
+// net for whatever slips past every layer-specific try/catch (see
+// src/errorBoundary.js). It only logs and rate-limit-toasts — never rethrows,
+// never interrupts execution.
+installGlobalErrorBoundary();
 
 initLogoGaze();
 
