@@ -1,5 +1,45 @@
 {
   "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "framework": "vite"
+  "framework": "vite",
+  "rewrites": [
+    { "source": "/api/opensky-track", "destination": "/api/opensky?__r=track" },
+    { "source": "/api/adsblol/mil", "destination": "/api/opensky?__r=adsblol-mil" },
+    { "source": "/api/adsblol/trace", "destination": "/api/opensky?__r=adsblol-trace" },
+    { "source": "/api/adsbdb/route/:callsign", "destination": "/api/opensky?__r=adsbdb-route&callsign=:callsign" },
+    { "source": "/api/adsbdb/type/:hex", "destination": "/api/opensky?__r=adsbdb-type&hex=:hex" },
+    { "source": "/api/military-installations", "destination": "/api/opensky?__r=military-installations" },
+
+    { "source": "/api/celestrak/:group", "destination": "/api/space?__r=celestrak&group=:group" },
+    { "source": "/api/launches", "destination": "/api/space?__r=launches" },
+
+    { "source": "/api/overpass", "destination": "/api/maps?__r=overpass" },
+    { "source": "/api/route", "destination": "/api/maps?__r=route" },
+    { "source": "/api/terrain/heights", "destination": "/api/maps?__r=terrain" },
+    { "source": "/api/gbfs/:path*", "destination": "/api/maps?__r=gbfs&path=:path*" },
+
+    { "source": "/api/cctv/sources", "destination": "/api/cctv?__r=sources" },
+    { "source": "/api/cctv/health", "destination": "/api/cctv?__r=health" },
+    { "source": "/api/cctv/frame/:id", "destination": "/api/cctv?__r=frame&id=:id" },
+    { "source": "/api/cctv/media/:id", "destination": "/api/cctv?__r=media&id=:id" },
+
+    { "source": "/api/tomtom/status", "destination": "/api/tomtom?__r=status" },
+    { "source": "/api/tomtom/flow/:z/:x/:y", "destination": "/api/tomtom?__r=flow&z=:z&x=:x&y=:y" },
+
+    { "source": "/api/firms", "destination": "/api/environment?__r=firms" },
+    { "source": "/api/firms/status", "destination": "/api/environment?__r=firms-status" },
+    { "source": "/api/regional-brief", "destination": "/api/environment?__r=regional-brief" },
+    { "source": "/api/weather-effects", "destination": "/api/environment?__r=weather-effects" },
+
+    { "source": "/api/radio/stations", "destination": "/api/radio?__r=stations" },
+    { "source": "/api/radio/click/:uuid", "destination": "/api/radio?__r=click&uuid=:uuid" },
+
+    { "source": "/api/openai/hud-summary", "destination": "/api/voice?__r=hud-summary" },
+    { "source": "/api/realtime/token", "destination": "/api/voice?__r=token" },
+
+    { "source": "/api/google/nearby-places", "destination": "/api/places?__r=nearby-places" },
+    { "source": "/api/google/text-search", "destination": "/api/places?__r=text-search" },
+
+    { "source": "/api/ais-live/track", "destination": "/api/ais-live?__r=track" }
+  ]
 }

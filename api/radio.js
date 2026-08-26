@@ -1,5 +1,16 @@
 /**
- * Vercel port of vite.config.js's radioBrowserProxy() GET /stations route.
+ * Consolidated hub for radio-directory routes (Vercel Hobby plan's 12
+ * Serverless Function cap forces route consolidation — see vercel.json
+ * rewrites). Dispatches on `req.query.__r`.
+ *
+ * Routes folded in (original file → __r key):
+ *   api/radio/stations.js      → stations
+ *   api/radio/click/[uuid].js  → click
+ */
+import { normalizeRadioBrowserStation, publicRadioStation, RADIO_UUID_RE } from './_lib/radioStation.js';
+
+/**
+ * Folded in from api/radio/stations.js (__r=stations).
  *
  * SIMPLIFICATION NOTE: the original dev-server proxy does DNS-level SSRF
  * pinning (resolves the mirror hostname, validates the address is public,
@@ -15,8 +26,6 @@
  * query — full parity would need re-porting ~500 lines of catalog-merging
  * logic for a caching/quality improvement, not a correctness one.
  */
-import { normalizeRadioBrowserStation, publicRadioStation } from '../_lib/radioStation.js';
-
 const RADIO_DIRECTORY_CACHE_MS = 45 * 60 * 1000;
 const RADIO_DIRECTORY_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 const RADIO_MIRROR_CACHE_MS = 6 * 60 * 60 * 1000;
@@ -27,9 +36,9 @@ const RADIO_FALLBACK_MIRRORS = Object.freeze([
 ]);
 const RADIO_DIRECTORY_LIMIT = 750;
 
-let mirrorCache = { origins: [...RADIO_FALLBACK_MIRRORS], cachedAt: 0 };
-let mirrorPromise = null;
-let catalogCache = null; // { cachedAt, updatedAt, stations, stationIds }
+let _mirrorCache = { origins: [...RADIO_FALLBACK_MIRRORS], cachedAt: 0 };
+let _mirrorPromise = null;
+let _catalogCache = null; // { cachedAt, updatedAt, stations, stationIds }
 
 function radioMirrorOrigin(value) {
   const hostname = String(value ?? '').toLowerCase().replace(/\.$/, '');
@@ -37,7 +46,7 @@ function radioMirrorOrigin(value) {
   return `https://${hostname}`;
 }
 
-async function fetchJson(url, maxBytes = 2 * 1024 * 1024) {
+async function fetchRadioJson(url, maxBytes = 2 * 1024 * 1024) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
@@ -54,32 +63,32 @@ async function fetchJson(url, maxBytes = 2 * 1024 * 1024) {
   }
 }
 
-async function mirrors() {
-  if (Date.now() - mirrorCache.cachedAt < RADIO_MIRROR_CACHE_MS) return mirrorCache.origins;
-  if (!mirrorPromise) {
-    mirrorPromise = (async () => {
+async function radioMirrors() {
+  if (Date.now() - _mirrorCache.cachedAt < RADIO_MIRROR_CACHE_MS) return _mirrorCache.origins;
+  if (!_mirrorPromise) {
+    _mirrorPromise = (async () => {
       try {
-        const rows = await fetchJson('https://all.api.radio-browser.info/json/servers', 256 * 1024);
+        const rows = await fetchRadioJson('https://all.api.radio-browser.info/json/servers', 256 * 1024);
         const discovered = [...new Set((Array.isArray(rows) ? rows : []).map((row) => radioMirrorOrigin(row?.name)).filter(Boolean))];
         if (discovered.length) {
-          mirrorCache = { origins: [...discovered, ...RADIO_FALLBACK_MIRRORS.filter((o) => !discovered.includes(o))], cachedAt: Date.now() };
+          _mirrorCache = { origins: [...discovered, ...RADIO_FALLBACK_MIRRORS.filter((o) => !discovered.includes(o))], cachedAt: Date.now() };
         } else {
-          mirrorCache = { ...mirrorCache, cachedAt: Date.now() };
+          _mirrorCache = { ..._mirrorCache, cachedAt: Date.now() };
         }
       } catch {
-        mirrorCache = { ...mirrorCache, cachedAt: Date.now() };
+        _mirrorCache = { ..._mirrorCache, cachedAt: Date.now() };
       }
-      return mirrorCache.origins;
-    })().finally(() => { mirrorPromise = null; });
+      return _mirrorCache.origins;
+    })().finally(() => { _mirrorPromise = null; });
   }
-  return mirrorPromise;
+  return _mirrorPromise;
 }
 
-async function fetchPath(pathname) {
+async function fetchRadioPath(pathname) {
   let lastError = null;
-  for (const origin of await mirrors()) {
+  for (const origin of await radioMirrors()) {
     try {
-      return await fetchJson(`${origin}${pathname}`);
+      return await fetchRadioJson(`${origin}${pathname}`);
     } catch (error) {
       lastError = error;
     }
@@ -87,7 +96,7 @@ async function fetchPath(pathname) {
   throw lastError || new Error('No Radio Browser mirror is available');
 }
 
-async function refreshCatalog() {
+async function refreshRadioCatalog() {
   const params = new URLSearchParams({
     has_geo_info: 'true',
     is_https: 'true',
@@ -96,7 +105,7 @@ async function refreshCatalog() {
     reverse: 'true',
     limit: '1800',
   });
-  const rows = await fetchPath(`/json/stations/search?${params}`, 4 * 1024 * 1024);
+  const rows = await fetchRadioPath(`/json/stations/search?${params}`, 4 * 1024 * 1024);
   if (!Array.isArray(rows)) throw new Error('Radio Browser catalog payload was not an array');
   const stations = rows.map(normalizeRadioBrowserStation).filter(Boolean).slice(0, RADIO_DIRECTORY_LIMIT);
   const timestamp = Date.now();
@@ -108,29 +117,29 @@ async function refreshCatalog() {
   };
 }
 
-async function getCatalog() {
+async function getRadioCatalog() {
   const now = Date.now();
-  if (catalogCache && now - catalogCache.cachedAt < RADIO_DIRECTORY_CACHE_MS) return { ...catalogCache, stale: false };
+  if (_catalogCache && now - _catalogCache.cachedAt < RADIO_DIRECTORY_CACHE_MS) return { ..._catalogCache, stale: false };
   try {
-    const fresh = await refreshCatalog();
-    catalogCache = fresh;
+    const fresh = await refreshRadioCatalog();
+    _catalogCache = fresh;
     return { ...fresh, stale: false };
   } catch (error) {
-    if (catalogCache && now - catalogCache.cachedAt <= RADIO_DIRECTORY_STALE_MS) {
-      return { ...catalogCache, stale: true, degraded: true, degradedReason: 'refresh-failed' };
+    if (_catalogCache && now - _catalogCache.cachedAt <= RADIO_DIRECTORY_STALE_MS) {
+      return { ..._catalogCache, stale: true, degraded: true, degradedReason: 'refresh-failed' };
     }
     throw error;
   }
 }
 
-export default async function handler(req, res) {
+async function handleRadioStations(req, res) {
   if (req.method !== 'GET') {
     res.status(405).setHeader('Cache-Control', 'no-store');
     res.send('');
     return;
   }
   try {
-    const catalog = await getCatalog();
+    const catalog = await getRadioCatalog();
     res.status(200).setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-store');
     res.send(JSON.stringify({
@@ -150,4 +159,46 @@ export default async function handler(req, res) {
   }
 }
 
-export { getCatalog };
+/**
+ * Folded in from api/radio/click/[uuid].js (__r=click, ?uuid=...). Fires the
+ * click-count ping to Radio Browser and returns 204 (awaited, with a short
+ * timeout, since serverless functions aren't guaranteed to keep running
+ * background work after the response is sent).
+ */
+async function handleRadioClick(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).setHeader('Cache-Control', 'no-store');
+    res.send('');
+    return;
+  }
+  const id = String(req.query?.uuid || '').toLowerCase();
+  if (!RADIO_UUID_RE.test(id)) {
+    res.status(404).setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify({ error: 'Unknown radio station' }));
+    return;
+  }
+  try {
+    await fetch(`${RADIO_FALLBACK_MIRRORS[0]}/json/url/${id}`, {
+      headers: { 'User-Agent': 'gods-eye-view-radio-proxy/1.0' },
+      signal: AbortSignal.timeout(4000),
+    });
+  } catch { /* best-effort click ping */ }
+  res.status(204).setHeader('Cache-Control', 'no-store');
+  res.end();
+}
+
+export default async function handler(req, res) {
+  try {
+    const route = req.query?.__r;
+    if (route === 'stations') return handleRadioStations(req, res);
+    if (route === 'click') return handleRadioClick(req, res);
+    res.status(404).setHeader('Content-Type', 'application/json');
+    res.send(JSON.stringify({ error: 'unknown_route' }));
+  } catch (err) {
+    console.error('[radio hub]', err?.message || err);
+    if (!res.headersSent) {
+      res.status(500).setHeader('Content-Type', 'application/json');
+      res.send(JSON.stringify({ error: 'internal_error', message: String(err?.message || err) }));
+    }
+  }
+}
