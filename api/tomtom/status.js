@@ -18,9 +18,17 @@ export function currentBudget() {
 }
 
 export default async function handler(req, res) {
-  const hasKey = Boolean(process.env.TOMTOM_API_KEY);
-  const b = currentBudget();
-  res.status(200).setHeader('Content-Type', 'application/json');
-  res.setHeader('Cache-Control', 'no-store');
-  res.send(JSON.stringify({ hasKey, dailyCount: b.count, budget: dailyBudgetLimit(), date: b.date }));
+  try {
+    const hasKey = Boolean(process.env.TOMTOM_API_KEY);
+    const b = currentBudget();
+    res.status(200).setHeader('Content-Type', 'application/json');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(JSON.stringify({ hasKey, dailyCount: b.count, budget: dailyBudgetLimit(), date: b.date }));
+  } catch (error) {
+    console.error('[tomtom-status]', error?.message || error);
+    if (!res.headersSent) {
+      res.status(500).setHeader('Content-Type', 'application/json');
+      res.send(JSON.stringify({ error: 'internal_error', message: String(error?.message || error) }));
+    }
+  }
 }

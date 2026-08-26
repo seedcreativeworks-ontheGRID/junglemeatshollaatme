@@ -49,6 +49,7 @@ export default async function handler(req, res) {
         locationBias: { circle: { center: { latitude, longitude }, radius: radiusM } },
         maxResultCount: 5,
       }),
+      signal: AbortSignal.timeout(12000),
     });
     const data = await response.json().catch(() => ({}));
     const places = Array.isArray(data.places) ? data.places

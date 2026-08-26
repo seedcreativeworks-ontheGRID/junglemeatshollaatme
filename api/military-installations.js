@@ -73,47 +73,55 @@ async function refresh(box, key) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
-    res.status(405).setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify({ error: 'Method Not Allowed' }));
-    return;
-  }
-  const url = new URL(req.url, 'http://localhost');
-  const requested = validBox(url.searchParams);
-  if (!requested) {
-    res.status(400).setHeader('Content-Type', 'application/json');
-    res.send(JSON.stringify({ error: 'A non-dateline bbox no larger than 10 degrees is required' }));
-    return;
-  }
-  const exact = url.searchParams.get('exact') === '1';
-  const box = exact ? requested : quantizeBox(requested);
-  const key = exact ? `exact:${cacheKeyFor(box, 5)}` : cacheKeyFor(box);
-  const now = Date.now();
-  const cached = _cache.get(key);
-  if (cached && now - cached.cachedAt <= CACHE_MS) {
-    res.status(200).setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60');
-    res.setHeader('X-Military-Installations', 'HIT');
-    res.send(JSON.stringify({ ...cached.payload, status: 'cached' }));
-    return;
-  }
-  const request = coalesceProxyRequest(_inFlight, key, () => refresh(box, key));
   try {
-    const payload = await request.promise;
-    res.status(200).setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'public, max-age=60');
-    res.setHeader('X-Military-Installations', request.shared ? 'INFLIGHT' : 'MISS');
-    res.send(JSON.stringify(payload));
-  } catch (error) {
-    if (cached && now - cached.cachedAt <= STALE_MS) {
-      res.status(200).setHeader('Content-Type', 'application/json');
-      res.setHeader('Cache-Control', 'no-store');
-      res.setHeader('X-Military-Installations', 'STALE');
-      res.send(JSON.stringify({ ...cached.payload, status: 'stale' }));
+    if (req.method !== 'GET') {
+      res.status(405).setHeader('Content-Type', 'application/json');
+      res.send(JSON.stringify({ error: 'Method Not Allowed' }));
       return;
     }
-    res.status(503).setHeader('Content-Type', 'application/json');
-    res.setHeader('Cache-Control', 'no-store');
-    res.send(JSON.stringify({ error: 'Mapped installation context is temporarily unavailable' }));
+    const url = new URL(req.url, 'http://localhost');
+    const requested = validBox(url.searchParams);
+    if (!requested) {
+      res.status(400).setHeader('Content-Type', 'application/json');
+      res.send(JSON.stringify({ error: 'A non-dateline bbox no larger than 10 degrees is required' }));
+      return;
+    }
+    const exact = url.searchParams.get('exact') === '1';
+    const box = exact ? requested : quantizeBox(requested);
+    const key = exact ? `exact:${cacheKeyFor(box, 5)}` : cacheKeyFor(box);
+    const now = Date.now();
+    const cached = _cache.get(key);
+    if (cached && now - cached.cachedAt <= CACHE_MS) {
+      res.status(200).setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.setHeader('X-Military-Installations', 'HIT');
+      res.send(JSON.stringify({ ...cached.payload, status: 'cached' }));
+      return;
+    }
+    const request = coalesceProxyRequest(_inFlight, key, () => refresh(box, key));
+    try {
+      const payload = await request.promise;
+      res.status(200).setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.setHeader('X-Military-Installations', request.shared ? 'INFLIGHT' : 'MISS');
+      res.send(JSON.stringify(payload));
+    } catch (error) {
+      if (cached && now - cached.cachedAt <= STALE_MS) {
+        res.status(200).setHeader('Content-Type', 'application/json');
+        res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Military-Installations', 'STALE');
+        res.send(JSON.stringify({ ...cached.payload, status: 'stale' }));
+        return;
+      }
+      res.status(503).setHeader('Content-Type', 'application/json');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(JSON.stringify({ error: 'Mapped installation context is temporarily unavailable' }));
+    }
+  } catch (error) {
+    console.error('[military-installations]', error?.message || error);
+    if (!res.headersSent) {
+      res.status(500).setHeader('Content-Type', 'application/json');
+      res.send(JSON.stringify({ error: 'internal_error', message: String(error?.message || error) }));
+    }
   }
 }

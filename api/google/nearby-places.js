@@ -58,6 +58,7 @@ export default async function handler(req, res) {
         rankPreference: 'DISTANCE',
         locationRestriction: { circle: { center: { latitude, longitude }, radius: radiusM } },
       }),
+      signal: AbortSignal.timeout(12000),
     });
     const data = await response.json().catch(() => ({}));
     const seenPlaces = new Set();

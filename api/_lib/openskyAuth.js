@@ -26,6 +26,7 @@ export async function getOpenSkyToken() {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}&client_secret=${encodeURIComponent(clientSecret)}`,
+          signal: AbortSignal.timeout(10000),
         },
       );
       let data = null;

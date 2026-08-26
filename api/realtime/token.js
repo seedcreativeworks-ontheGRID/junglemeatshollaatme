@@ -71,6 +71,7 @@ export default async function handler(req, res) {
         'OpenAI-Safety-Identifier': 'gev-vercel-deployed',
       },
       body: JSON.stringify(sessionConfig),
+      signal: AbortSignal.timeout(15000),
     });
     const body = await response.text();
     res.status(response.status);

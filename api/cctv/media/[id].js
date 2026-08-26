@@ -19,7 +19,7 @@ export default async function handler(req, res) {
       const upstreamHeaders = { 'User-Agent': 'gods-eye-view-cctv-proxy/1.0' };
       const requestRange = req.headers?.range;
       if (requestRange) upstreamHeaders.Range = requestRange;
-      const upstream = await fetch(mediaUrl, { headers: upstreamHeaders });
+      const upstream = await fetch(mediaUrl, { headers: upstreamHeaders, signal: AbortSignal.timeout(15000) });
       if (!upstream.ok) {
         res.status(upstream.status).setHeader('Content-Type', 'application/json');
         res.setHeader('Cache-Control', 'no-store');

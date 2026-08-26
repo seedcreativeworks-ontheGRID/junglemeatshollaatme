@@ -54,6 +54,7 @@ export default async function handler(req, res) {
         reasoning: { effort: 'minimal' },
         max_output_tokens: 100,
       }),
+      signal: AbortSignal.timeout(15000),
     });
     const data = await response.json().catch(() => ({}));
     const summary = toFiveWordHudSummary(extractOpenAiResponseText(data));

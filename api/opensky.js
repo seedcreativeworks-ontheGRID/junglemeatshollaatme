@@ -111,10 +111,11 @@ export default async function handler(req, res) {
       }
     }
 
-    let upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', { headers });
+    let upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', { headers, signal: AbortSignal.timeout(15000) });
     if ((upstream.status === 401 || upstream.status === 403) && requestedMode === 'auto' && usedMode === 'oauth' && hasBasicCreds) {
       upstream = await fetch('https://opensky-network.org/api/states/all?extended=1', {
         headers: { Accept: 'application/json', Authorization: `Basic ${Buffer.from(`${basicUser}:${basicPass}`).toString('base64')}` },
+        signal: AbortSignal.timeout(15000),
       });
       usedMode = 'basic';
       reason = 'oauth_rejected_fallback_basic';
